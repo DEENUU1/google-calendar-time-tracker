@@ -21,6 +21,7 @@ load_dotenv()
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 CALENDAR_ID = os.getenv("CALENDAR_ID")
+TO_SKIP = ["Deadline"]
 
 
 @dataclass
@@ -74,10 +75,17 @@ def main():
         print(f"An error occurred: {error}")
 
 
+def check_title_to_skip(title: str) -> bool:
+    return any(title.startswith(skip) for skip in TO_SKIP)
+
+
 def calculate_total_time_grouped_by_event_name(events: List[Event]) -> Dict[str, float]:
     total_time_by_event = defaultdict(float)
 
     for event in events:
+        if check_title_to_skip(event.title):
+            continue
+
         start_time = datetime.fromisoformat(event.start)
         end_time = datetime.fromisoformat(event.end)
         duration_seconds = (end_time - start_time).total_seconds()
@@ -90,6 +98,9 @@ def calculate_total_time_grouped_by_month(events: List[Event]) -> Dict[str, floa
     total_time_by_month = defaultdict(float)
 
     for event in events:
+        if check_title_to_skip(event.title):
+            continue
+
         start_time = datetime.fromisoformat(event.start)
         end_time = datetime.fromisoformat(event.end)
         duration_seconds = (end_time - start_time).total_seconds()
@@ -108,6 +119,9 @@ def calculate_total_time_grouped_by_day(events: List[Event]) -> dict:
     total_time_by_day = defaultdict(float)
 
     for event in events:
+        if check_title_to_skip(event.title):
+            continue
+
         start_time = datetime.fromisoformat(event.start)
         end_time = datetime.fromisoformat(event.end)
         duration_seconds = (end_time - start_time).total_seconds()
@@ -124,10 +138,10 @@ def calculate_total_time_grouped_by_day(events: List[Event]) -> dict:
 if __name__ == "__main__":
     calendar = main()
 
-    print(calendar.title)
-
-    for event in calendar.events:
-        print(f"{event.title} - {event.start} - {event.end}")
+    # print(calendar.title)
+    #
+    # for event in calendar.events:
+    #     print(f"{event.title} - {event.start} - {event.end}")
 
     # total_time_by_event_name = calculate_total_time_grouped_by_event_name(calendar.events)
     # print(total_time_by_event_name)
