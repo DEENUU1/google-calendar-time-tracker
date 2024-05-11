@@ -1,6 +1,8 @@
 # import datetime
 import os.path
 import os
+from typing import List
+
 from dotenv import load_dotenv
 
 from google.auth.transport.requests import Request
@@ -8,13 +10,27 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-
+from dataclasses import dataclass
 
 load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 CALENDAR_ID = os.getenv("CALENDAR_ID")
+
+
+@dataclass
+class Event:
+    title: str
+    start: str
+    end: str
+
+
+@dataclass
+class Calendar:
+    title: str
+    events: List[Event]
+
 
 def main():
     creds = None
@@ -35,37 +51,29 @@ def main():
 
     try:
         service = build("calendar", "v3", credentials=creds)
+        events_result = (service.events().list(calendarId=CALENDAR_ID).execute())
+        calendar_name = events_result.get("summary")
 
-        # now = datetime.datetime.utcnow().isoformat() + "Z"
-        print("Getting the upcoming 10 events")
-        events_result = (
-            service.events()
-            .list(
-                calendarId=CALENDAR_ID,
-                # timeMin=now,
-                # maxResults=10,
-                # singleEvents=True,
-                # orderBy="startTime",
-            )
-            .execute()
-        )
-
-        events = events_result.get("items", [])
-
-        if not events:
-            print("No upcoming events found.")
-            return
-
-        for event in events:
+        events = []
+        for event in events_result.get("items", []):
             try:
                 start = event["start"].get("dateTime", event["start"].get("date"))
-                print(start, event["summary"])
+                end = event["end"].get("dateTime", event["end"].get("date"))
+                events.append(Event(event["summary"], start, end))
             except KeyError:
                 pass
+
+        calendar = Calendar(calendar_name, events)
+        return calendar
 
     except HttpError as error:
         print(f"An error occurred: {error}")
 
 
 if __name__ == "__main__":
-    main()
+    calendar = main()
+
+    print(calendar.title)
+
+    for event in calendar.events:
+        print(f"{event.title} - {event.start} - {event.end}")
