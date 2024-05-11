@@ -86,12 +86,39 @@ def calculate_total_time_grouped_by_event_name(events: List[Event]) -> Dict[str,
     return dict(total_time_by_event)
 
 
-def calculate_total_time_grouped_by_month(events: List[Event]) -> dict:
-    pass
+def calculate_total_time_grouped_by_month(events: List[Event]) -> Dict[str, float]:
+    total_time_by_month = defaultdict(float)
+
+    for event in events:
+        start_time = datetime.fromisoformat(event.start)
+        end_time = datetime.fromisoformat(event.end)
+        duration_seconds = (end_time - start_time).total_seconds()
+        month_year_key = (start_time.year, start_time.month)
+        total_time_by_month[month_year_key] += duration_seconds / 3600
+
+    total_time_by_month_str = {
+        f"{datetime(year, month, 1).strftime('%B')}-{year}": hours
+        for (year, month), hours in total_time_by_month.items()
+    }
+
+    return total_time_by_month_str
 
 
 def calculate_total_time_grouped_by_day(events: List[Event]) -> dict:
-    pass
+    total_time_by_day = defaultdict(float)
+
+    for event in events:
+        start_time = datetime.fromisoformat(event.start)
+        end_time = datetime.fromisoformat(event.end)
+        duration_seconds = (end_time - start_time).total_seconds()
+        day_key = start_time.date()
+        total_time_by_day[day_key] += duration_seconds / 3600
+
+    total_time_by_day_str = {
+        day.strftime("%A %d %B %Y"): hours for day, hours in total_time_by_day.items()
+    }
+
+    return total_time_by_day_str
 
 
 if __name__ == "__main__":
@@ -102,5 +129,11 @@ if __name__ == "__main__":
     for event in calendar.events:
         print(f"{event.title} - {event.start} - {event.end}")
 
-    total_time_by_event_name = calculate_total_time_grouped_by_event_name(calendar.events)
-    print(total_time_by_event_name)
+    # total_time_by_event_name = calculate_total_time_grouped_by_event_name(calendar.events)
+    # print(total_time_by_event_name)
+
+    # total_time_by_month = calculate_total_time_grouped_by_month(calendar.events)
+    # print(total_time_by_month)
+
+    # total_time_by_day = calculate_total_time_grouped_by_day(calendar.events)
+    # print(total_time_by_day)
