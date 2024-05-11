@@ -1,27 +1,27 @@
 # import datetime
 import os
 import os.path
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import List
-
+from datetime import datetime
+from typing import List, Dict
+from typing import Optional
+import typer
 from dotenv import load_dotenv
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from typing import List, Dict
-from collections import defaultdict
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-
+from typing_extensions import Annotated
+from rich.console import Console
 
 load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-
 CALENDAR_ID = os.getenv("CALENDAR_ID")
-TO_SKIP = ["Deadline"]
+
+console = Console()
 
 
 @dataclass
@@ -37,7 +37,7 @@ class Calendar:
     events: List[Event]
 
 
-def main():
+def get_calendar() -> Calendar:
     creds = None
 
     if os.path.exists("token.json"):
@@ -75,15 +75,31 @@ def main():
         print(f"An error occurred: {error}")
 
 
-def check_title_to_skip(title: str) -> bool:
-    return any(title.startswith(skip) for skip in TO_SKIP)
+def check_title_to_skip(title: str, to_skip: Optional[List[str]] = None) -> bool:
+    if to_skip is None:
+        return False
+
+    return any(title.startswith(skip) for skip in to_skip)
 
 
-def calculate_total_time_grouped_by_event_name(events: List[Event]) -> Dict[str, float]:
+def get_selected_date(event_start: str, year: Optional[int] = None, month: Optional[int] = None) -> bool:
+    if (year is not None and month is not None):
+        start_time = datetime.fromisoformat(event_start)
+        if start_time.year != year or start_time.month != month:
+            return False
+    return True
+
+
+def calculate_total_time_grouped_by_event_name(events: List[Event], year: Optional[int] = None,
+                                               month: Optional[int] = None,
+                                               to_skip: Optional[List[str]] = None) -> Dict[str, float]:
     total_time_by_event = defaultdict(float)
 
     for event in events:
-        if check_title_to_skip(event.title):
+        if not get_selected_date(event.start, year, month):
+            continue
+
+        if check_title_to_skip(event.title, to_skip):
             continue
 
         start_time = datetime.fromisoformat(event.start)
@@ -94,11 +110,19 @@ def calculate_total_time_grouped_by_event_name(events: List[Event]) -> Dict[str,
     return dict(total_time_by_event)
 
 
-def calculate_total_time_grouped_by_month(events: List[Event]) -> Dict[str, float]:
+def calculate_total_time_grouped_by_month(
+        events: List[Event],
+        year: Optional[int] = None,
+        month: Optional[int] = None,
+to_skip: Optional[List[str]] = None
+) -> Dict[str, float]:
     total_time_by_month = defaultdict(float)
 
     for event in events:
-        if check_title_to_skip(event.title):
+        if not get_selected_date(event.start, year, month):
+            continue
+
+        if check_title_to_skip(event.title, to_skip):
             continue
 
         start_time = datetime.fromisoformat(event.start)
@@ -115,11 +139,19 @@ def calculate_total_time_grouped_by_month(events: List[Event]) -> Dict[str, floa
     return total_time_by_month_str
 
 
-def calculate_total_time_grouped_by_day(events: List[Event]) -> dict:
+def calculate_total_time_grouped_by_day(
+        events: List[Event],
+        year: int = None,
+        month: int = None,
+to_skip: Optional[List[str]] = None
+) -> Dict[str, float]:
     total_time_by_day = defaultdict(float)
 
     for event in events:
-        if check_title_to_skip(event.title):
+        if not get_selected_date(event.start, year, month):
+            continue
+
+        if check_title_to_skip(event.title, to_skip):
             continue
 
         start_time = datetime.fromisoformat(event.start)
@@ -135,19 +167,44 @@ def calculate_total_time_grouped_by_day(events: List[Event]) -> dict:
     return total_time_by_day_str
 
 
+def main(
+        skip: Annotated[str, typer.Option()] = None,
+        year: Annotated[int, typer.Option()] = None,
+        month: Annotated[int, typer.Option(min=1, max=12)] = None
+) -> None:
+    to_skip = skip
+    if skip is not None:
+        to_skip = skip.split(",")
+
+    if year and not month or month and not year:
+        raise typer.BadParameter("Both year and month must be provided.")
+
+    calendar = get_calendar()
+
+    total_time_by_event_name = calculate_total_time_grouped_by_event_name(calendar.events, year, month, to_skip)
+    total_time_by_month = calculate_total_time_grouped_by_month(calendar.events, year, month, to_skip)
+    total_time_by_day = calculate_total_time_grouped_by_day(calendar.events, year, month, to_skip)
+
+
+    console.print("Total time by event name", style="bold green")
+
+    for event_name, hours in total_time_by_event_name.items():
+        console.print(f" -> {event_name}: {hours:.2f} hours", style="bold green")
+
+    console.print("\n")
+
+    console.print("Total time by event name", style="bold green")
+
+    for date, hours in total_time_by_month.items():
+        console.print(f" -> {date}: {hours:.2f} hours", style="bold green")
+
+    console.print("\n")
+
+    console.print("Total time by event name", style="bold green")
+
+    for date, hours in total_time_by_day.items():
+        console.print(f" -> {date}: {hours:.2f} hours", style="bold green")
+
+
 if __name__ == "__main__":
-    calendar = main()
-
-    # print(calendar.title)
-    #
-    # for event in calendar.events:
-    #     print(f"{event.title} - {event.start} - {event.end}")
-
-    # total_time_by_event_name = calculate_total_time_grouped_by_event_name(calendar.events)
-    # print(total_time_by_event_name)
-
-    # total_time_by_month = calculate_total_time_grouped_by_month(calendar.events)
-    # print(total_time_by_month)
-
-    # total_time_by_day = calculate_total_time_grouped_by_day(calendar.events)
-    # print(total_time_by_day)
+    typer.run(main)
